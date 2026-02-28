@@ -32,29 +32,9 @@ body{
 
 body{
 	width: 320px;
-	padding: 14px;:root{
-	--bg: #ffffff;
-	--panel: #f6fbff;
-	--border: rgba(8, 36, 86, 0.14);
-	--text: #0b2a56;
-	--muted: rgba(11, 42, 86, 0.68);
-
-	--blue: #2d8cff;
-	--blue-deep: #1f6fd6;
-
-	--orange: #ff8a2a;
-	--orange-deep: #e96f10;
-
-	--radius: 14px;
-	--shadow-soft: 0 6px 18px rgba(8, 36, 86, 0.12);
+	padding: 14px;
 }
 
-*{
-	box-sizing: border-box;
-}
-}
-
-/* Section rows */
 .row{
 	display: flex;
 	align-items: center;
@@ -77,7 +57,6 @@ body{
 	letter-spacing: 0.3px;
 }
 
-/* Radio styling */
 input[type="radio"]{
 	accent-color: var(--blue);
 	cursor: pointer;
@@ -97,7 +76,6 @@ input[type="radio"]{
 	box-shadow: 0 0 0 3px rgba(45, 140, 255, 0.15);
 }
 
-/* Divider */
 hr{
 	margin: 16px 0;
 	border: none;
@@ -110,7 +88,6 @@ hr{
 	);
 }
 
-/* Primary button */
 #btn-pick{
 	width: 100%;
 	padding: 12px;
@@ -139,7 +116,6 @@ hr{
 	background: linear-gradient(135deg, var(--blue-deep) 0%, var(--blue) 100%);
 }
 
-/* Tip text */
 .small{
 	margin-top: 12px;
 	font-size: 12px;
