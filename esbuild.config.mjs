@@ -3,7 +3,6 @@ import { argv } from "node:process";
 
 const isWatch = argv.includes("--watch");
 
-/** @type {esbuild.BuildOptions} */
 const base = {
   entryPoints: {
     background: "src/background.ts",
