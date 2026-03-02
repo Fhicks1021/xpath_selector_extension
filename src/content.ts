@@ -44,8 +44,11 @@ async function copyText(text: string): Promise<void> {
     ta.style.opacity = "0";
     document.body.appendChild(ta);
     ta.select();
-    document.execCommand("copy");
+    const copied = document.execCommand("copy");
     ta.remove();
+    if (!copied) {
+      throw new Error("Clipboard copy command failed.");
+    }
   }
 }
 
@@ -72,10 +75,52 @@ function showToast(message: string): void {
   window.setTimeout(() => toast.remove(), 2200);
 }
 
+function countSelectorMatches(selector: string, mode: OutputMode, doc: Document): number {
+  if (mode === "css") {
+    try {
+      return doc.querySelectorAll(selector).length;
+    } catch {
+      return 0;
+    }
+  }
+
+  try {
+    const result = doc.evaluate(selector, doc, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+    return result.snapshotLength;
+  } catch {
+    return 0;
+  }
+}
+
 async function handleTarget(target: Element, mode: OutputMode): Promise<void> {
-  const result = generateSelectors(target, mode, document);
-  await copyText(result.preferred);
-  showToast(`Copied ${mode.toUpperCase()} selector`);
+  try {
+    const result = generateSelectors(target, mode, document);
+    if (!result) {
+      const message = "Unable to find a unique identifier. Please manually construct your selector.";
+      await copyText(message);
+      showToast("Copied warning: unable to find a unique identifier");
+      return;
+    }
+
+    const matchCount = countSelectorMatches(result.preferred, mode, document);
+
+    if (matchCount !== 1) {
+      const message = [
+        `${mode.toUpperCase()} selector is not unique.`,
+        `Matched: ${matchCount} elements`,
+        `Selector: ${result.preferred}`
+      ].join("\n");
+      await copyText(message);
+      showToast(`Copied warning: selector matched ${matchCount} elements`);
+      return;
+    }
+
+    await copyText(result.preferred);
+    showToast(`Copied ${mode.toUpperCase()} selector`);
+  } catch (error) {
+    console.error("[SelectorGen] failed to copy selector", error);
+    showToast("Unable to copy to clipboard");
+  }
 }
 
 async function startPicker(mode: OutputMode): Promise<void> {

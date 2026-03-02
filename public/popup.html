@@ -8,27 +8,35 @@
 	</head>
 	<body>
 		<div class="row">
-			<strong>Output</strong>
+			<strong>Output Saves to Clipboard</strong>
 		</div>
 
-		<div class="row">
+		<label class="row option-row" for="out-xpath" id="row-xpath">
 			<input id="out-xpath" type="radio" name="output" value="xpath">
-			<label for="out-xpath">XPath</label>
-		</div>
+			<span class="option-text">XPath</span>
+			<span class="option-fill" aria-hidden="true"></span>
+		</label>
 
-		<div class="row">
+		<label class="row option-row" for="out-css" id="row-css">
 			<input id="out-css" type="radio" name="output" value="css">
-			<label for="out-css">CSS</label>
-		</div>
+			<span class="option-text">CSS</span>
+			<span class="option-fill" aria-hidden="true"></span>
+		</label>
+
+		<hr>
+
+		<button id="btn-save" class="secondary-button">Save preference</button>
+
+		<div class="small" id="save-status"></div>
 
 		<hr>
 
 		<button id="btn-pick">Pick element (click)</button>
 
 		<div class="small">
-			Tip: right-click an element, then use the context menu option. Tracker is injected the first time you click "Pick element" on a page.
+			Tip: right-click an element, then use the context menu option. <br>DOM Tracker is injected the first time you attempt generate a selector. <b>As a result the first attempt will usually fail.<b>
 		</div>
 
-		<script src="dist/popup.js"></script>
+		<script src="../dist/popup.js"></script>
 	</body>
 </html>
