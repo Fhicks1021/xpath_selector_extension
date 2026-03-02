@@ -1,0 +1,11 @@
+export const TEST_ATTRS = ["data-test", "data-testid", "data-test-id", "data-qa", "data-cy"] as const;
+export const INTERACTIVE_TAGS = new Set(["a", "button", "input", "select", "textarea", "option"]);
+export const ANCHOR_ATTRS = ["id", "name", "aria-label", "placeholder", "title", "alt", "src", "href"] as const;
+export const SEMANTIC_CONTAINER_TAGS = new Set(["main", "form", "dialog", "nav", "section", "article", "aside"]);
+export const CONTENT_CONTAINER_TAGS = new Set(["li", "article", "section", "div"]);
+export const MAX_TEST_HOPS = 4;
+export const MAX_DATA_HOPS = 3;
+export const MAX_GENERIC_HOPS = 3;
+export const MAX_CANDIDATES_PER_PRIORITY = 3;
+export const MAX_NEARBY_MEANINGFUL_HOPS = 3;
+export const MAX_CONTENT_LINK_HOPS = 4;

@@ -18,23 +18,75 @@ async function injectAndSend(msg: unknown): Promise<void> {
 async function main(): Promise<void> {
   const xpathRadio = q<HTMLInputElement>("#out-xpath");
   const cssRadio = q<HTMLInputElement>("#out-css");
+  const saveBtn = q<HTMLButtonElement>("#btn-save");
+  const saveStatus = q<HTMLDivElement>("#save-status");
   const pickBtn = q<HTMLButtonElement>("#btn-pick");
+  const xpathRow = q<HTMLLabelElement>("#row-xpath");
+  const cssRow = q<HTMLLabelElement>("#row-css");
+
+  let selectedMode: OutputMode = "xpath";
+  let savedMode: OutputMode = "xpath";
+
+  function setStatus(message: string, state: "success" | "error" | ""): void {
+    saveStatus.textContent = message;
+    if (state) {
+      saveStatus.dataset.state = state;
+      return;
+    }
+
+    delete saveStatus.dataset.state;
+  }
+
+  function applyMode(mode: OutputMode): void {
+    selectedMode = mode;
+    xpathRadio.checked = mode === "xpath";
+    cssRadio.checked = mode === "css";
+    if (selectedMode === savedMode) {
+      setStatus(`Saved preference: ${savedMode.toUpperCase()}`, "success");
+      return;
+    }
+
+    setStatus("", "");
+  }
 
   const mode = await getMode();
-  xpathRadio.checked = mode === "xpath";
-  cssRadio.checked = mode === "css";
+  savedMode = mode;
+  applyMode(mode);
 
-  xpathRadio.addEventListener("change", async () => {
-    if (xpathRadio.checked) await setMode("xpath");
+  xpathRadio.addEventListener("change", () => {
+    if (xpathRadio.checked) applyMode("xpath");
   });
 
-  cssRadio.addEventListener("change", async () => {
-    if (cssRadio.checked) await setMode("css");
+  cssRadio.addEventListener("change", () => {
+    if (cssRadio.checked) applyMode("css");
+  });
+
+  xpathRow.addEventListener("click", () => {
+    applyMode("xpath");
+  });
+
+  cssRow.addEventListener("click", () => {
+    applyMode("css");
+  });
+
+  saveBtn.addEventListener("click", async () => {
+    try {
+      saveBtn.disabled = true;
+      setStatus("Saving preference...", "");
+      await setMode(selectedMode);
+      await chrome.runtime.sendMessage({ type: "REFRESH_CONTEXT_MENU" });
+      savedMode = selectedMode;
+      setStatus(`Saved preference: ${selectedMode.toUpperCase()}`, "success");
+    } catch (error) {
+      console.error("[SelectorGen] failed to save preference", error);
+      setStatus("Unable to save preference.", "error");
+    } finally {
+      saveBtn.disabled = false;
+    }
   });
 
   pickBtn.addEventListener("click", async () => {
-    const currentMode = await getMode();
-    await injectAndSend({ type: "START_PICKER", mode: currentMode });
+    await injectAndSend({ type: "START_PICKER", mode: selectedMode });
     window.close();
   });
 }

@@ -48,6 +48,14 @@ body{
 	transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
 }
 
+.option-row{
+	width: 100%;
+	cursor: pointer;
+	display: flex;
+	justify-content: flex-start;
+	user-select: none;
+}
+
 .row + .row{
 	margin-top: 10px;
 }
@@ -60,18 +68,24 @@ body{
 input[type="radio"]{
 	accent-color: var(--blue);
 	cursor: pointer;
+	flex: 0 0 auto;
 }
 
-.row:has(input[type="radio"]){
-	cursor: pointer;
+.option-text{
+	flex: 0 0 auto;
 }
 
-.row:has(input[type="radio"]):hover{
+.option-fill{
+	flex: 1 1 auto;
+	min-width: 32px;
+}
+
+.option-row:hover{
 	border-color: rgba(45, 140, 255, 0.35);
 	box-shadow: 0 0 0 3px rgba(45, 140, 255, 0.08);
 }
 
-.row:has(input[type="radio"]:checked){
+.option-row:has(input[type="radio"]:checked){
 	border-color: var(--blue);
 	box-shadow: 0 0 0 3px rgba(45, 140, 255, 0.15);
 }
@@ -88,7 +102,7 @@ hr{
 	);
 }
 
-#btn-pick{
+button{
 	width: 100%;
 	padding: 12px;
 	border-radius: var(--radius);
@@ -105,15 +119,43 @@ hr{
 	transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
 }
 
-#btn-pick:hover{
+button:hover{
 	transform: translateY(-1px);
+}
+
+button:active{
+	transform: translateY(0);
+}
+
+#btn-pick{
+	color: #ffffff;
+	background: linear-gradient(135deg, var(--blue) 0%, var(--blue-deep) 100%);
+	box-shadow: var(--shadow-soft);
+}
+
+#btn-pick:hover{
 	box-shadow: 0 10px 24px rgba(31, 111, 214, 0.25);
 }
 
 #btn-pick:active{
-	transform: translateY(0);
 	box-shadow: 0 4px 10px rgba(31, 111, 214, 0.2);
 	background: linear-gradient(135deg, var(--blue-deep) 0%, var(--blue) 100%);
+}
+
+.secondary-button{
+	color: var(--text);
+	background: linear-gradient(180deg, #ffffff 0%, var(--panel) 100%);
+	border: 1px solid var(--border);
+	box-shadow: none;
+}
+
+.secondary-button:hover{
+	border-color: rgba(45, 140, 255, 0.35);
+	box-shadow: 0 0 0 3px rgba(45, 140, 255, 0.08);
+}
+
+.secondary-button:active{
+	background: linear-gradient(180deg, var(--panel) 0%, #ffffff 100%);
 }
 
 .small{
@@ -121,4 +163,17 @@ hr{
 	font-size: 12px;
 	color: var(--muted);
 	line-height: 1.5;
+}
+
+#save-status{
+	min-height: 18px;
+	margin-top: 10px;
+}
+
+#save-status[data-state="success"]{
+	color: #12724f;
+}
+
+#save-status[data-state="error"]{
+	color: #b42318;
 }

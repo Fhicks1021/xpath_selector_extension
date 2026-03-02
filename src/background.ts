@@ -1,12 +1,47 @@
-import { getMode, type OutputMode } from "../shared/mode";
+import { getMode, STORAGE_KEY, type OutputMode } from "../shared/mode";
 import { sendMessageWithContentScript } from "../shared/runtime";
 
+const MENU_ID = "copy-selector";
+
+function modeLabel(mode: OutputMode): string {
+  return mode === "css" ? "CSS" : "XPath";
+}
+
+async function upsertContextMenu(): Promise<void> {
+  const mode = await getMode();
+  const title = `Copy ${modeLabel(mode)} selector`;
+
+  try {
+    await chrome.contextMenus.update(MENU_ID, { title, contexts: ["all"] });
+  } catch {
+    chrome.contextMenus.create({
+      id: MENU_ID,
+      title,
+      contexts: ["all"]
+    });
+  }
+}
+
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: "copy-selector",
-    title: "Copy selector (XPath/CSS)",
-    contexts: ["all"]
-  });
+  void upsertContextMenu();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  void upsertContextMenu();
+});
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== "local") return;
+  if (!(STORAGE_KEY in changes)) return;
+  void upsertContextMenu();
+});
+
+chrome.runtime.onMessage.addListener((msg: unknown, _sender, sendResponse) => {
+  if (!msg || typeof msg !== "object") return;
+  if ((msg as { type?: string }).type !== "REFRESH_CONTEXT_MENU") return;
+
+  void upsertContextMenu().then(() => sendResponse({ ok: true }));
+  return true;
 });
 
 chrome.contextMenus.onClicked.addListener(async (_info, tab) => {
