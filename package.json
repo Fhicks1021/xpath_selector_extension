@@ -1,11 +1,13 @@
 {
   "name": "xpath-css-selector-generator",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "node esbuild.config.mjs",
-    "watch": "node esbuild.config.mjs --watch"
+    "watch": "node esbuild.config.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "release:check": "npm run typecheck && npm run build"
   },
   "devDependencies": {
     "@types/chrome": "^0.1.37",

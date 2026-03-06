@@ -27,6 +27,7 @@ export function isStableClassName(name: string): boolean {
   if (name.length > 60) return false;
   if (/^(active|disabled|focus|hover|open|selected)$/.test(name)) return false;
   if (/^(ember|js-|is-|has-)/.test(name)) return false;
+  if (/^(?:m|p)(?:[trblxy])?--/.test(name)) return false;
   return true;
 }
 
