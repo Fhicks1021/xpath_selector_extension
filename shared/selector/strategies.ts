@@ -335,12 +335,13 @@ export function buildDirectElementSelector(target: Element, mode: OutputMode, do
 }
 
 export function buildDirectClassSelector(target: Element, mode: OutputMode, doc: Document): SelectorResult[] {
+  if (mode === "xpath") return [];
   const targetTag = getTag(target);
   return getClassSelectorCandidates(targetTag, getStableClassNames(target), doc, mode)
     .slice(0, MAX_CANDIDATES_PER_PRIORITY)
     .map(candidate => ({
-      preferred: mode === "xpath" ? candidate.xpath : candidate.css,
-      alternate: mode === "xpath" ? candidate.css : candidate.xpath,
+      preferred: candidate.css,
+      alternate: candidate.xpath,
       debug: { strategy: "direct_class_combo", anchor: candidate.css, targetTag }
     }));
 }
@@ -378,24 +379,18 @@ export function buildDirectLinkSelector(target: Element, mode: OutputMode, doc: 
 
   const alt = childImage.getAttribute("alt")?.trim();
   if (alt) {
-    const hrefAndAltXPath = `//a[@href=${quoteXpath(href)} and .//img[@alt=${quoteXpath(alt)}]]`;
-    if (evaluateXPathCount(hrefAndAltXPath, doc) === 1) {
-      const css = `a[href="${escapeCssValue(href)}"]:has(img[alt="${escapeCssValue(alt)}"])`;
-      if (mode !== "css" || evaluateCssCount(css, doc) === 1) {
-        results.push({ preferred: mode === "xpath" ? hrefAndAltXPath : css, alternate: mode === "xpath" ? css : hrefAndAltXPath, debug: { strategy: "href_with_img_alt", anchor: `${href} | ${alt}`, targetTag: "a" } });
-        if (results.length >= MAX_CANDIDATES_PER_PRIORITY) return results;
-      }
+    const css = `a[href="${escapeCssValue(href)}"]:has(img[alt="${escapeCssValue(alt)}"])`;
+    if (mode === "css" && evaluateCssCount(css, doc) === 1) {
+      results.push({ preferred: css, alternate: null, debug: { strategy: "href_with_img_alt", anchor: `${href} | ${alt}`, targetTag: "a" } });
+      if (results.length >= MAX_CANDIDATES_PER_PRIORITY) return results;
     }
   }
 
   const src = childImage.getAttribute("src")?.trim();
   if (src) {
-    const hrefAndSrcXPath = `//a[@href=${quoteXpath(href)} and .//img[@src=${quoteXpath(src)}]]`;
-    if (evaluateXPathCount(hrefAndSrcXPath, doc) === 1) {
-      const css = `a[href="${escapeCssValue(href)}"]:has(img[src="${escapeCssValue(src)}"])`;
-      if (mode !== "css" || evaluateCssCount(css, doc) === 1) {
-        results.push({ preferred: mode === "xpath" ? hrefAndSrcXPath : css, alternate: mode === "xpath" ? css : hrefAndSrcXPath, debug: { strategy: "href_with_img_src", anchor: `${href} | ${src}`, targetTag: "a" } });
-      }
+    const css = `a[href="${escapeCssValue(href)}"]:has(img[src="${escapeCssValue(src)}"])`;
+    if (mode === "css" && evaluateCssCount(css, doc) === 1) {
+      results.push({ preferred: css, alternate: null, debug: { strategy: "href_with_img_src", anchor: `${href} | ${src}`, targetTag: "a" } });
     }
   }
 
@@ -547,6 +542,48 @@ export function buildContentBlockLinkAnchorSelector(target: Element, mode: Outpu
   return results;
 }
 
+export function buildInlineLinkAnchorSelector(target: Element, mode: OutputMode, doc: Document): SelectorResult[] {
+  const targetTag = getTag(target);
+  if (!["p", "div", "span", "li"].includes(targetTag)) return [];
+
+  const links = Array.from(target.querySelectorAll("a[href]"))
+    .filter((link): link is HTMLAnchorElement => link instanceof HTMLAnchorElement)
+    .filter(link => link.getAttribute("href")?.trim());
+  if (!links.length) return [];
+
+  const results: SelectorResult[] = [];
+  const seen = new Set<string>();
+
+  for (const link of links) {
+    const linkCandidates = buildDirectLinkSelector(link, mode, doc);
+    for (const linkCandidate of linkCandidates) {
+      const href = link.getAttribute("href")?.trim();
+      if (!href) continue;
+
+      const css = `${targetTag}:has(a[href="${escapeCssValue(href)}"])`;
+      const xpath = `//${targetTag}[.//a[@href=${quoteXpath(href)}]]`;
+      const selector = mode === "xpath" ? xpath : css;
+      const key = `${mode}:${selector}`;
+      if (seen.has(key)) continue;
+
+      const isUnique = mode === "xpath"
+        ? evaluateXPathCount(xpath, doc) === 1
+        : evaluateCssCount(css, doc) === 1;
+      if (!isUnique) continue;
+
+      results.push({
+        preferred: selector,
+        alternate: mode === "xpath" ? (evaluateCssCount(css, doc) === 1 ? css : null) : (evaluateXPathCount(xpath, doc) === 1 ? xpath : null),
+        debug: { strategy: "inline_link_anchor", anchor: linkCandidate.preferred, targetTag }
+      });
+      seen.add(key);
+      if (results.length >= MAX_CANDIDATES_PER_PRIORITY) return results;
+    }
+  }
+
+  return results;
+}
+
 export function buildDirectGenericSelector(target: Element, mode: OutputMode, doc: Document): SelectorResult | null {
   const targetTag = getTag(target);
   const attrPriority: Record<string, number> = { "aria-label": 0, title: 1, placeholder: 2, alt: 3, href: 4, src: 5 };
@@ -587,10 +624,20 @@ export function buildUniqueAncestorTagSelector(target: Element, mode: OutputMode
     if (evaluateXPathCount(ancestorXPath, doc) === 1) {
       const relXPath = buildDescendantXPath(current, target);
       if (!relXPath) return null;
+      if (mode === "xpath" && /\[\d+\]/.test(relXPath)) {
+        current = current.parentElement;
+        hopCount += 1;
+        continue;
+      }
 
       const xpath = relXPath === "." ? ancestorXPath : `${ancestorXPath}${relXPath.slice(1)}`;
       if (evaluateXPathCount(xpath, doc) === 1) {
         const relCss = buildDescendantCss(current, target);
+        if (mode === "css" && relCss?.includes(":nth-of-type(")) {
+          current = current.parentElement;
+          hopCount += 1;
+          continue;
+        }
         const css = relCss ? `${ancestorTag} ${relCss}` : ancestorTag;
         return { preferred: mode === "xpath" ? xpath : css, alternate: mode === "xpath" ? css : xpath, debug: { strategy: "unique_ancestor_tag", anchor: ancestorTag, targetTag: getTag(target) } };
       }

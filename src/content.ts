@@ -1,36 +1,17 @@
-console.log("[SelectorGen] content script loaded");
-(window as any).__selectorGenLoaded = true;
-
 import type { OutputMode } from "../shared/mode";
-import { generateSelectors } from "../shared/selector";
+import { setLastSelectorOptions } from "../shared/selection";
+import { generateRankedSelectorOptions } from "../shared/selector";
 
 function isElement(n: unknown): n is Element {
   return !!n && typeof n === "object" && (n as Element).nodeType === 1;
 }
 
 let pickerActive = false;
-let lastRightClicked: Element | null = null;
+let lastContextTarget: Element | null = null;
 
 function normalizeMode(mode: unknown): OutputMode {
   return mode === "css" ? "css" : "xpath";
 }
-
-function installRightClickTracker(): void {
-  if ((window as any).__selectorGenRightClickTrackerInstalled) return;
-
-  document.addEventListener(
-    "contextmenu",
-    event => {
-      const target = event.target;
-      lastRightClicked = isElement(target) ? target : null;
-    },
-    true
-  );
-
-  (window as any).__selectorGenRightClickTrackerInstalled = true;
-}
-
-installRightClickTracker();
 
 async function copyText(text: string): Promise<void> {
   try {
@@ -94,29 +75,34 @@ function countSelectorMatches(selector: string, mode: OutputMode, doc: Document)
 
 async function handleTarget(target: Element, mode: OutputMode): Promise<void> {
   try {
-    const result = generateSelectors(target, mode, document);
-    if (!result) {
+    const ranked = generateRankedSelectorOptions(target, mode, document, 4);
+    const [primary, ...alternatives] = ranked;
+
+    if (!primary) {
       const message = "Unable to find a unique identifier. Please manually construct your selector.";
       await copyText(message);
+      await setLastSelectorOptions({ primary: null, alternatives: [], capturedAt: Date.now(), pageUrl: location.href });
       showToast("Copied warning: unable to find a unique identifier");
       return;
     }
 
-    const matchCount = countSelectorMatches(result.preferred, mode, document);
+    const matchCount = countSelectorMatches(primary.selector, primary.mode, document);
 
     if (matchCount !== 1) {
       const message = [
-        `${mode.toUpperCase()} selector is not unique.`,
+        `${primary.mode.toUpperCase()} selector is not unique.`,
         `Matched: ${matchCount} elements`,
-        `Selector: ${result.preferred}`
+        `Selector: ${primary.selector}`
       ].join("\n");
       await copyText(message);
+      await setLastSelectorOptions({ primary, alternatives, capturedAt: Date.now(), pageUrl: location.href });
       showToast(`Copied warning: selector matched ${matchCount} elements`);
       return;
     }
 
-    await copyText(result.preferred);
-    showToast(`Copied ${mode.toUpperCase()} selector`);
+    await copyText(primary.selector);
+    await setLastSelectorOptions({ primary, alternatives, capturedAt: Date.now(), pageUrl: location.href });
+    showToast(`Copied ${primary.mode.toUpperCase()} selector`);
   } catch (error) {
     console.error("[SelectorGen] failed to copy selector", error);
     showToast("Unable to copy to clipboard");
@@ -124,11 +110,15 @@ async function handleTarget(target: Element, mode: OutputMode): Promise<void> {
 }
 
 async function startPicker(mode: OutputMode): Promise<void> {
-  installRightClickTracker();
+  showToast(`Picker active: click an element to copy ${mode.toUpperCase()}`);
+  await startPickerWithMessage(mode);
+}
+
+async function startPickerWithMessage(mode: OutputMode, message?: string): Promise<void> {
   if (pickerActive) return;
   pickerActive = true;
 
-  showToast(`Picker active: click an element to copy ${mode.toUpperCase()}`);
+  showToast(message ?? `Picker active: click an element to copy ${mode.toUpperCase()}`);
 
   const onClick = (event: MouseEvent) => {
     event.preventDefault();
@@ -149,6 +139,32 @@ async function startPicker(mode: OutputMode): Promise<void> {
   document.addEventListener("click", onClick, true);
 }
 
+document.addEventListener("contextmenu", event => {
+  lastContextTarget = isElement(event.target) ? event.target : null;
+}, true);
+
+function getTargetFromContextMenuMessage(targetElementId: unknown): Element | null {
+  if (typeof targetElementId === "number") {
+    const browserContextMenus = (globalThis as typeof globalThis & {
+      browser?: {
+        contextMenus?: {
+          getTargetElement?: (targetElementId: number) => Element | null;
+        };
+      };
+    }).browser?.contextMenus;
+    const targetFromBrowser = browserContextMenus?.getTargetElement?.(targetElementId);
+    if (targetFromBrowser) return targetFromBrowser;
+
+    const contextMenusApi = chrome.contextMenus as typeof chrome.contextMenus & {
+      getTargetElement?: (targetElementId: number) => Element | null;
+    };
+    const target = contextMenusApi.getTargetElement?.(targetElementId);
+    if (target) return target;
+  }
+
+  return lastContextTarget;
+}
+
 chrome.runtime.onMessage.addListener((msg: any, _sender, sendResponse) => {
   if (!msg || typeof msg !== "object") return;
 
@@ -163,16 +179,16 @@ chrome.runtime.onMessage.addListener((msg: any, _sender, sendResponse) => {
     return;
   }
 
-  if (msg.type === "GENERATE_FROM_LAST_RIGHT_CLICK") {
-    installRightClickTracker();
-
-    if (!lastRightClicked) {
-      showToast("No right-click target yet. Right-click an element first.");
-      sendResponse({ ok: false, reason: "no_target" });
+  if (msg.type === "COPY_CONTEXT_TARGET") {
+    const mode = normalizeMode(msg.mode);
+    const target = getTargetFromContextMenuMessage(msg.targetElementId);
+    if (!target) {
+      void startPickerWithMessage(mode, `Context target unavailable after refresh. Click an element to copy ${mode.toUpperCase()}.`);
+      sendResponse({ ok: true, fallback: "picker" });
       return;
     }
 
-    void handleTarget(lastRightClicked, normalizeMode(msg.mode));
+    void handleTarget(target, mode);
     sendResponse({ ok: true });
     return;
   }

@@ -10,6 +10,17 @@ export type SelectorResult = {
   };
 };
 
+export type RankedSelectorOption = {
+  selector: string;
+  mode: OutputMode;
+  priority: number;
+  debug: {
+    strategy: string;
+    anchor?: string;
+    targetTag: string;
+  };
+};
+
 export type StableAttr = {
   attr: string;
   value: string;

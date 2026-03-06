@@ -1,59 +1,46 @@
-import { getMode, STORAGE_KEY, type OutputMode } from "../shared/mode";
+import { getMode, type OutputMode } from "../shared/mode";
 import { sendMessageWithContentScript } from "../shared/runtime";
 
-const MENU_ID = "copy-selector";
+const MENU_ID = "selector-generator-copy";
 
-function modeLabel(mode: OutputMode): string {
-  return mode === "css" ? "CSS" : "XPath";
+function getMenuTitle(mode: OutputMode): string {
+  return mode === "css" ? "Copy CSS selector" : "Copy XPath selector";
 }
 
-async function upsertContextMenu(): Promise<void> {
-  const mode = await getMode();
-  const title = `Copy ${modeLabel(mode)} selector`;
+async function createContextMenus(mode: OutputMode): Promise<void> {
+  await chrome.contextMenus.removeAll();
 
-  try {
-    await chrome.contextMenus.update(MENU_ID, { title, contexts: ["all"] });
-  } catch {
-    chrome.contextMenus.create({
-      id: MENU_ID,
-      title,
-      contexts: ["all"]
-    });
-  }
+  chrome.contextMenus.create({
+    id: MENU_ID,
+    title: getMenuTitle(mode),
+    contexts: ["all"]
+  });
+}
+
+async function refreshContextMenu(): Promise<void> {
+  const mode = await getMode();
+  await createContextMenus(mode);
 }
 
 chrome.runtime.onInstalled.addListener(() => {
-  void upsertContextMenu();
+  void refreshContextMenu();
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  void upsertContextMenu();
+  void refreshContextMenu();
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName !== "local") return;
-  if (!(STORAGE_KEY in changes)) return;
-  void upsertContextMenu();
+  if (areaName !== "local" || !("selector_output_mode" in changes)) return;
+  void refreshContextMenu();
 });
 
-chrome.runtime.onMessage.addListener((msg: unknown, _sender, sendResponse) => {
-  if (!msg || typeof msg !== "object") return;
-  if ((msg as { type?: string }).type !== "REFRESH_CONTEXT_MENU") return;
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (String(info.menuItemId) !== MENU_ID || !tab) return;
 
-  void upsertContextMenu().then(() => sendResponse({ ok: true }));
-  return true;
+  void (async () => {
+    const mode = await getMode();
+    const targetElementId = (info as chrome.contextMenus.OnClickData & { targetElementId?: number }).targetElementId;
+    await sendMessageWithContentScript(tab, { type: "COPY_CONTEXT_TARGET", mode, targetElementId });
+  })();
 });
-
-chrome.contextMenus.onClicked.addListener(async (_info, tab) => {
-  const tabId = tab?.id;
-  if (tabId == null || !tab) return;
-
-  const mode = await getMode();
-
-  try {
-    await sendMessageWithContentScript(tab, { type: "GENERATE_FROM_LAST_RIGHT_CLICK", mode });
-  } catch (err) {
-    console.error("[SelectorGen] context menu failed", err);
-  }
-});
-export {}; 

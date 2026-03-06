@@ -121,6 +121,15 @@ export function getAssociatedLabel(target: Element): HTMLLabelElement | null {
 export function getStableAttrs(el: Element): StableAttr[] {
   const hits: StableAttr[] = [];
 
+  const isStableDataAttr = (attr: string, value: string): boolean => {
+    if (/^data-(ved|cid|ei|sig|pii|session|token|nonce|ts|timestamp)$/i.test(attr)) return false;
+    if (value.length > 80) return false;
+    if (!/^[a-zA-Z0-9 _.:/-]+$/.test(value)) return false;
+    if (/[A-Z]/.test(value) && /[a-z]/.test(value) && /\d/.test(value) && value.length > 16) return false;
+    if (!/[a-z]/i.test(value)) return false;
+    return true;
+  };
+
   for (const attr of TEST_ATTRS) {
     const value = el.getAttribute(attr)?.trim();
     if (value) hits.push({ attr, value, kind: "test" });
@@ -132,7 +141,7 @@ export function getStableAttrs(el: Element): StableAttr[] {
 
     const value = el.getAttribute(attr)?.trim();
     if (!value) continue;
-    if (value.length > 120) continue;
+    if (!isStableDataAttr(attr, value)) continue;
     hits.push({ attr, value, kind: "data" });
   }
 

@@ -34,7 +34,17 @@
 		<button id="btn-pick">Pick element (click)</button>
 
 		<div class="small">
-			Tip: right-click an element, then use the context menu option. <br>DOM Tracker is injected the first time you attempt generate a selector. <b>As a result the first attempt will usually fail.<b>
+			Click the button above, then click an element on the current page to copy the strongest selector.
+		</div>
+
+		<hr>
+
+		<div class="results-head">
+			<strong>Recent Selector Options</strong>
+		</div>
+
+		<div id="selector-results" class="results-list">
+			<div class="small" id="selector-results-empty">Pick an element to store the copied selector and up to three alternatives.</div>
 		</div>
 
 		<script src="../dist/popup.js"></script>
