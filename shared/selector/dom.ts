@@ -8,6 +8,71 @@ type EvaluationCache = {
 };
 
 let currentEvaluationCache: EvaluationCache | null = null;
+const BLACKLISTED_ATTRS = new Set([
+  "data-hveid",
+  "data-ved",
+  "data-ei",
+  "data-csa-c-id",
+  "jsname",
+  "jsaction",
+  "data-sd"
+]);
+
+function isCanonicalNumericResourcePath(path: string): boolean {
+  return /^\/(?:rooms?|listings?|products?|articles?)\/\d+(?:\/|$)/i.test(path);
+}
+
+function isAcceptableAnchorHref(href: string, doc: Document): boolean {
+  if (!href || !href.trim() || href.length > 160) return false;
+  if (href.trim() === "#" || href.trim().startsWith("#")) return false;
+  if (/^(?:javascript|mailto|tel|sms|data):/i.test(href.trim())) return false;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(href, doc.location.href);
+  } catch {
+    return false;
+  }
+
+  const query = parsed.search.startsWith("?") ? parsed.search.slice(1) : parsed.search;
+  const params: Array<[string, string]> = [];
+  parsed.searchParams.forEach((value, key) => {
+    params.push([key, value]);
+  });
+
+  const hasEncodedBlob = /(?:%[0-9a-f]{2}){6,}/i.test(href);
+  const hasLongOpaqueToken = isCanonicalNumericResourcePath(parsed.pathname || "/") ? false : /[A-Za-z0-9_-]{24,}/.test(href);
+  const hasStatefulHash = parsed.hash.length > 24 || /[A-Za-z0-9_-]{16,}/.test(parsed.hash);
+  const blockedParam = (key: string): boolean => {
+    const k = key.toLowerCase();
+    if (k.startsWith("utm_")) return true;
+    if (k.startsWith("pf_rd_") || k.startsWith("pd_rd_")) return true;
+    return [
+      "gclid", "fbclid", "msclkid", "mc_eid", "session", "sid", "token", "auth", "nonce", "state", "phpsessid", "jsessionid",
+      "ref", "ref_", "ref_src"
+    ].includes(k);
+  };
+
+  const hasTrackingParams = params.some(([key]) => blockedParam(key));
+  const hasComplexValue = params.some(([, value]) => value.length > 40 || /[%+/=]/.test(value));
+  const hasSearchStateParams = params.some(([key]) => ["q", "oq", "aqs", "ved", "ei", "sourceid", "start", "tbm"].includes(key.toLowerCase()));
+
+  if (
+    hasEncodedBlob
+    || hasLongOpaqueToken
+    || hasStatefulHash
+    || hasTrackingParams
+    || hasSearchStateParams
+    || params.length > 3
+    || query.length > 90
+    || hasComplexValue
+    || params.some(([, value]) => value.length > 50)
+  ) {
+    return false;
+  }
+
+  return true;
+}
 
 export function isElement(n: unknown): n is Element {
   return !!n && typeof n === "object" && (n as Element).nodeType === 1;
@@ -122,7 +187,9 @@ export function getStableAttrs(el: Element): StableAttr[] {
   const hits: StableAttr[] = [];
 
   const isStableDataAttr = (attr: string, value: string): boolean => {
-    if (/^data-(ved|cid|ei|sig|pii|session|token|nonce|ts|timestamp)$/i.test(attr)) return false;
+    if (BLACKLISTED_ATTRS.has(attr.toLowerCase())) return false;
+    if (/^data-csa-/i.test(attr)) return false;
+    if (/^data-(ved|cid|ei|sig|pii|session|token|nonce|ts|timestamp|hveid|sd)$/i.test(attr)) return false;
     if (value.length > 80) return false;
     if (!/^[a-zA-Z0-9 _.:/-]+$/.test(value)) return false;
     if (/[A-Z]/.test(value) && /[a-z]/.test(value) && /\d/.test(value) && value.length > 16) return false;
@@ -137,6 +204,7 @@ export function getStableAttrs(el: Element): StableAttr[] {
 
   for (const attr of el.getAttributeNames()) {
     if (TEST_ATTRS.includes(attr as (typeof TEST_ATTRS)[number])) continue;
+    if (BLACKLISTED_ATTRS.has(attr.toLowerCase())) continue;
     if (!attr.startsWith("data-")) continue;
 
     const value = el.getAttribute(attr)?.trim();
@@ -162,6 +230,7 @@ export function getUniqueStableAttr(el: Element, doc: Document, preferredKind?: 
   const tag = getTag(el);
 
   for (const hit of ordered) {
+    if (hit.attr === "href" && !isAcceptableAnchorHref(hit.value, doc)) continue;
     const anyTagXPath = buildAttrXPath("*", hit.attr, hit.value);
     if (evaluateXPathCount(anyTagXPath, doc) === 1) return hit;
 
@@ -177,6 +246,16 @@ export function findNearbyAnchor(target: Element, doc: Document, maxHops: number
 
   for (let hop = 0; hop <= maxHops; hop++) {
     if (!current) break;
+    if (preferredKind === "data") {
+      // Amazon-style cards can duplicate the same data-asin in virtualized DOM trees.
+      // Allow data-asin as an anchor even when not globally unique; downstream strategies
+      // can add local scoping (data-test-index/id) to disambiguate.
+      const asin = current.getAttribute("data-asin")?.trim();
+      if (asin && /^[A-Z0-9]{8,14}$/i.test(asin)) {
+        return { el: current, hit: { attr: "data-asin", value: asin, kind: "data" }, hop };
+      }
+    }
+
     const hit = getUniqueStableAttr(current, doc, preferredKind);
     if (hit && hit.kind === preferredKind) {
       return { el: current, hit, hop };

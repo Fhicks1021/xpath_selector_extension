@@ -4,8 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node esbuild.config.mjs",
-    "watch": "node esbuild.config.mjs --watch",
+    "build": "npm run build:chrome",
+    "build:chrome": "node scripts/sync-manifest.mjs chrome && node esbuild.config.mjs",
+    "build:firefox": "node scripts/sync-manifest.mjs firefox && node esbuild.config.mjs",
+    "watch": "npm run watch:chrome",
+    "watch:chrome": "node scripts/sync-manifest.mjs chrome && node esbuild.config.mjs --watch",
+    "watch:firefox": "node scripts/sync-manifest.mjs firefox && node esbuild.config.mjs --watch",
     "typecheck": "tsc --noEmit",
     "release:check": "npm run typecheck && npm run build"
   },

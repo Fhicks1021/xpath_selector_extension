@@ -3,13 +3,12 @@
   "name": "Selector Generator (XPath/CSS)",
   "version": "1.0.0",
   "description": "Pick an element and generate XPath or CSS. Prefers data-test attributes, falls back to label-like text.",
-  "minimum_chrome_version": "121",
   "action": {
     "default_title": "Generate selector",
     "default_popup": "public/popup.html"
   },
   "background": {
-    "service_worker": "dist/background.js"
+    "scripts": ["dist/background.js"]
   },
   "content_scripts": [
     {
@@ -28,5 +27,11 @@
     "16": "icons/logo16.png",
     "48": "icons/logo48.png",
     "128": "icons/logo128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "@xpath-css-selector-generator",
+      "strict_min_version": "121.0"
+    }
   }
 }
