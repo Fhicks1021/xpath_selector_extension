@@ -6,3 +6,4 @@
 - Switch to CSS mode, save the preference, and verify `Pick element (click)` copies a unique CSS selector.
 - Confirm restricted pages fail cleanly with a user-visible error instead of a broken popup flow.
 - Verify the final package only includes the files needed for the Chrome release.
+  

@@ -23,6 +23,10 @@ type PrioritizedSelectorResult = SelectorResult & {
   priority: number;
 };
 
+function isListHasSelector(selector: string, mode: OutputMode): boolean {
+  return mode === "css" && /^\s*li:has\(/i.test(selector);
+}
+
 function countXPathIndexSteps(selector: string): number {
   const matches = selector.match(/\/[a-zA-Z*][^/\[]*\[(\d+)\]/g) ?? [];
   return matches.length;
@@ -32,6 +36,67 @@ function countCssIndexSteps(selector: string): number {
   const nthOfTypeMatches = selector.match(/:nth-of-type\((\d+)\)/g) ?? [];
   const nthChildMatches = selector.match(/:nth-child\((\d+)\)/g) ?? [];
   return nthOfTypeMatches.length + nthChildMatches.length;
+}
+
+function getStrategyReadabilityPenalty(strategy: string): number {
+  switch (strategy) {
+    case "direct_id":
+      return -35;
+    case "direct_name":
+      return -15;
+    case "label_anchor":
+      return -10;
+    case "direct_title":
+      return 20;
+    case "direct_alt":
+      return 20;
+    case "direct_placeholder":
+      return 25;
+    case "direct_src":
+      return 35;
+    case "ancestor_class_chain_css":
+      return 45;
+    case "direct_class_combo":
+      return 30;
+    case "link_content_css":
+      return 40;
+    case "direct_href_slug_contains":
+      return 60;
+    case "inline_link_anchor":
+      return 65;
+    case "content_block_link_anchor_css":
+      return 70;
+    case "link_content_has_css":
+      return 85;
+    case "text_fallback_tag_exact":
+    case "text_fallback":
+      return 130;
+    default:
+      return 0;
+  }
+}
+
+function getReadabilityScore(candidate: PrioritizedSelectorResult): number {
+  const selector = candidate.preferred;
+  const hopCount = getHopCount(selector, candidate.mode);
+  const indexStepCount = candidate.mode === "xpath" ? countXPathIndexSteps(selector) : countCssIndexSteps(selector);
+  const hasPseudoCount = candidate.mode === "css" ? (selector.match(/:has\(/g) ?? []).length : 0;
+  const classTokenCount = candidate.mode === "css" ? (selector.match(/\.[a-zA-Z0-9_-]+/g) ?? []).length : 0;
+  const textMatchCount = candidate.mode === "xpath" ? (selector.match(/normalize-space\(\.\)/g) ?? []).length : 0;
+  const attributeAnchorCount = candidate.mode === "xpath"
+    ? (selector.match(/@[\w:-]+=/g) ?? []).length
+    : (selector.match(/\[[^\]]+\]/g) ?? []).length + (selector.includes("#") ? 1 : 0);
+
+  const score = selector.length
+    + hopCount * 14
+    + indexStepCount * 30
+    + hasPseudoCount * 40
+    + classTokenCount * 6
+    + textMatchCount * 20
+    - attributeAnchorCount * 8
+    + getStrategyReadabilityPenalty(candidate.debug.strategy);
+
+  return Math.max(0, score);
 }
 
 function hasScopedAnchor(selector: string, mode: OutputMode): boolean {
@@ -83,6 +148,8 @@ function compareCandidates(a: PrioritizedSelectorResult, b: PrioritizedSelectorR
 }
 
 function compareCandidatesWithinMode(a: PrioritizedSelectorResult, b: PrioritizedSelectorResult): number {
+  const readability = getReadabilityScore(a) - getReadabilityScore(b);
+  if (readability !== 0) return readability;
   if (a.preferred.length !== b.preferred.length) return a.preferred.length - b.preferred.length;
   return a.preferred.localeCompare(b.preferred);
 }
@@ -91,14 +158,21 @@ function collectCandidates(target: Element, mode: OutputMode, doc: Document): Pr
   const candidates: PrioritizedSelectorResult[] = [];
 
   const pushCandidates = (priority: number, next: SelectorResult | SelectorResult[] | null): void => {
+    const getAdjustedPriority = (candidate: SelectorResult): number => {
+      // Keep generic slug href matching as a true fallback even though it's built
+      // by the direct-link strategy pipeline.
+      if (candidate.debug.strategy === "direct_href_slug_contains") return 16;
+      return priority;
+    };
+
     if (!next) return;
     if (Array.isArray(next)) {
       for (const candidate of next.slice(0, MAX_CANDIDATES_PER_PRIORITY)) {
-        candidates.push({ ...candidate, mode, priority });
+        candidates.push({ ...candidate, mode, priority: getAdjustedPriority(candidate) });
       }
       return;
     }
-    candidates.push({ ...next, mode, priority });
+    candidates.push({ ...next, mode, priority: getAdjustedPriority(next) });
   };
 
   const directGenericSelector = buildDirectGenericSelector(target, mode, doc);
@@ -118,19 +192,19 @@ function collectCandidates(target: Element, mode: OutputMode, doc: Document): Pr
   pushCandidates(4, buildDirectSemanticAttributeSelector(target, mode, doc));
   pushCandidates(5, highPriorityGenericSelector);
   pushCandidates(6, buildDirectLinkSelector(target, mode, doc));
-  pushCandidates(7, buildLinkContentSelector(target, mode, doc));
-  pushCandidates(8, buildInlineLinkAnchorSelector(target, mode, doc));
-  pushCandidates(9, buildContentBlockLinkAnchorSelector(target, mode, doc));
-  pushCandidates(10, buildAncestorClassChainSelector(target, mode, doc));
-  pushCandidates(11, buildUniqueAncestorTagSelector(target, mode, doc));
-  pushCandidates(12, buildTextFallback(target, mode, doc));
-  pushCandidates(13, buildDirectClassSelector(target, mode, doc));
-  pushCandidates(14, buildLabelSelector(target, mode, doc));
-  pushCandidates(15, lowPriorityGenericSelector);
-  pushCandidates(16, buildSemanticControlSelector(target, mode, doc));
+  pushCandidates(7, buildDirectClassSelector(target, mode, doc));
+  pushCandidates(8, buildUniqueAncestorTagSelector(target, mode, doc));
+  pushCandidates(9, buildAncestorClassChainSelector(target, mode, doc));
+  pushCandidates(10, buildLabelSelector(target, mode, doc));
+  pushCandidates(11, lowPriorityGenericSelector);
+  pushCandidates(12, buildSemanticControlSelector(target, mode, doc));
+  pushCandidates(13, buildInlineLinkAnchorSelector(target, mode, doc));
+  pushCandidates(14, buildLinkContentSelector(target, mode, doc));
+  pushCandidates(15, buildContentBlockLinkAnchorSelector(target, mode, doc));
 
   const nearbyGenericAnchor = findNearbyAnchor(target, doc, MAX_GENERIC_HOPS, "generic");
-  if (nearbyGenericAnchor) pushCandidates(17, buildFromAnchor(nearbyGenericAnchor.el, nearbyGenericAnchor.hit, target, mode));
+  if (nearbyGenericAnchor) pushCandidates(16, buildFromAnchor(nearbyGenericAnchor.el, nearbyGenericAnchor.hit, target, mode));
+  pushCandidates(17, buildTextFallback(target, mode, doc));
 
   const accepted: PrioritizedSelectorResult[] = [];
   for (const candidate of candidates) {
@@ -138,6 +212,11 @@ function collectCandidates(target: Element, mode: OutputMode, doc: Document): Pr
     if (!isIndexedFallbackAcceptable(candidate, accepted.length > 0)) continue;
     accepted.push(candidate);
   }
+
+  accepted.sort((a, b) => {
+    if (a.priority !== b.priority) return a.priority - b.priority;
+    return compareCandidatesWithinMode(a, b);
+  });
 
   return accepted;
 }
@@ -204,6 +283,19 @@ export function generateRankedSelectorOptions(clicked: Element, preferredMode: O
         .sort(compareCandidatesWithinMode);
       appendCandidate(preferredCandidates[0]);
       if (ranked.length >= limit) break;
+    }
+
+    if (ranked.length > 1 && isListHasSelector(ranked[0].selector, ranked[0].mode)) {
+      const betterPrimaryIndex = ranked.findIndex((candidate, index) =>
+        index > 0
+        && candidate.mode === ranked[0].mode
+        && !isListHasSelector(candidate.selector, candidate.mode)
+      );
+      if (betterPrimaryIndex > 0) {
+        const listHasPrimary = ranked[0];
+        ranked[0] = ranked[betterPrimaryIndex];
+        ranked[betterPrimaryIndex] = listHasPrimary;
+      }
     }
 
     return ranked;
