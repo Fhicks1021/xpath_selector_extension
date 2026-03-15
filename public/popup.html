@@ -6,10 +6,16 @@
 		<title>Selector Generator</title>
 		<link rel="stylesheet" href="popup.css">
 	</head>
-	<body>
-		<div class="row">
-			<strong>Output Saves to Clipboard</strong>
-		</div>
+		<body>
+			<div class="topbar">
+				<button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle dark mode" aria-pressed="false">
+					<span class="theme-toggle-track" aria-hidden="true">
+						<span class="theme-toggle-thumb"></span>
+					</span>
+				</button>
+			</div>
+
+		<p class="section-note">Output saves to clipboard</p>
 
 		<label class="row option-row" for="out-xpath" id="row-xpath">
 			<input id="out-xpath" type="radio" name="output" value="xpath">
