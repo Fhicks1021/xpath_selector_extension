@@ -18,6 +18,7 @@ async function injectAndSend(msg: unknown): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  const themeToggle = q<HTMLButtonElement>("#theme-toggle");
   const xpathRadio = q<HTMLInputElement>("#out-xpath");
   const cssRadio = q<HTMLInputElement>("#out-css");
   const saveBtn = q<HTMLButtonElement>("#btn-save");
@@ -31,6 +32,9 @@ async function main(): Promise<void> {
   let selectedMode: OutputMode = "xpath";
   let savedMode: OutputMode = "xpath";
   const reportEmail = "xpath.selector.tool@gmail.com";
+  const THEME_KEY = "selector_popup_theme";
+
+  type ThemeMode = "light" | "dark";
 
   function setStatus(message: string, state: "success" | "error" | ""): void {
     saveStatus.textContent = message;
@@ -44,6 +48,23 @@ async function main(): Promise<void> {
 
   async function copyText(text: string): Promise<void> {
     await navigator.clipboard.writeText(text);
+  }
+
+  function getPreferredTheme(): ThemeMode {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+
+  function setThemeToggleLabel(theme: ThemeMode): void {
+    const isDark = theme === "dark";
+    const nextTheme = isDark ? "light" : "dark";
+    themeToggle.setAttribute("aria-label", `Switch to ${nextTheme} mode`);
+    themeToggle.setAttribute("aria-pressed", String(isDark));
+  }
+
+  async function applyTheme(theme: ThemeMode): Promise<void> {
+    document.body.dataset.theme = theme;
+    setThemeToggleLabel(theme);
+    await chrome.storage.local.set({ [THEME_KEY]: theme });
   }
 
   function getStrategyLabel(option: RankedSelectorOption): string {
@@ -164,9 +185,18 @@ async function main(): Promise<void> {
   }
 
   const mode = await getMode();
+  const themeResult = await chrome.storage.local.get(THEME_KEY);
+  const initialTheme = (themeResult[THEME_KEY] as ThemeMode | undefined) ?? getPreferredTheme();
+  document.body.dataset.theme = initialTheme;
+  setThemeToggleLabel(initialTheme);
   savedMode = mode;
   applyMode(mode);
   renderStoredSelectors(await getLastSelectorOptions());
+
+  themeToggle.addEventListener("click", async () => {
+    const nextTheme: ThemeMode = document.body.dataset.theme === "dark" ? "light" : "dark";
+    await applyTheme(nextTheme);
+  });
 
   xpathRadio.addEventListener("change", () => {
     if (xpathRadio.checked) applyMode("xpath");
