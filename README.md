@@ -29,3 +29,7 @@ Packaged zips are written to `build/`:
 - `build/selector-generator-firefox-v<version>.zip`
 
 Use [`RELEASE_CHECKLIST.md`](/home/frederickhicks/projects/xpath-selector-extension/RELEASE_CHECKLIST.md) for final validation and [`STORE_LISTING.md`](/home/frederickhicks/projects/xpath-selector-extension/STORE_LISTING.md) for store copy.
+
+## Privacy policy
+
+The public privacy policy page for store submission is available at `privacy.html` when this repository is published with GitHub Pages.
