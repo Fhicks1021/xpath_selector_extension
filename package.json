@@ -5,13 +5,19 @@
   "type": "module",
   "scripts": {
     "build": "npm run build:chrome",
-    "build:chrome": "node scripts/sync-manifest.mjs chrome && node esbuild.config.mjs",
-    "build:firefox": "node scripts/sync-manifest.mjs firefox && node esbuild.config.mjs",
+    "build:all": "npm run build:chrome && npm run build:firefox",
+    "build:chrome": "node esbuild.config.mjs",
+    "build:firefox": "node esbuild.config.mjs",
+    "package:chrome": "npm run build:chrome && node scripts/package-extension.mjs chrome",
+    "package:firefox": "npm run build:firefox && node scripts/package-extension.mjs firefox",
+    "package:all": "npm run package:chrome && npm run package:firefox",
     "watch": "npm run watch:chrome",
-    "watch:chrome": "node scripts/sync-manifest.mjs chrome && node esbuild.config.mjs --watch",
-    "watch:firefox": "node scripts/sync-manifest.mjs firefox && node esbuild.config.mjs --watch",
+    "watch:chrome": "node esbuild.config.mjs --watch",
+    "watch:firefox": "node esbuild.config.mjs --watch",
+    "use:chrome-manifest": "node scripts/sync-manifest.mjs chrome",
+    "use:firefox-manifest": "node scripts/sync-manifest.mjs firefox",
     "typecheck": "tsc --noEmit",
-    "release:check": "npm run typecheck && npm run build"
+    "release:check": "npm run typecheck && npm run package:all"
   },
   "devDependencies": {
     "@types/chrome": "^0.1.37",
