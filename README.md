@@ -14,6 +14,18 @@ Browser extension for generating XPath and CSS selectors by clicking elements on
 - Create release zips with `npm run package:all`
 - Run the release gate with `npm run release:check`
 
+### Build environment
+
+- Operating systems: Linux, macOS, or Windows with Node.js installed
+- Node.js: 20 or newer recommended
+- npm: included with Node.js
+
+### Reproducing the Firefox release build
+
+1. Run `npm install`
+2. Run `npm run package:firefox`
+3. The Firefox release zip will be written to `build/selector-generator-firefox-v<version>.zip`
+
 If you want to load the repository root as an unpacked extension, copy the desired manifest into place first:
 
 - Chrome: `npm run use:chrome-manifest`
